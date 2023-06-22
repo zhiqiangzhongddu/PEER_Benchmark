@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("-c", "--config", help="yaml configuration file",
                         default="config/single_task/CNN/beta_CNN.yaml")
     parser.add_argument("--seed", help="random seed", type=int, default=0)
+    parser.add_argument("--split", help="data split setting", default="two_vs_rest")
 
     return parser.parse_known_args()[0]
 
@@ -102,7 +103,8 @@ def train_and_validate(cfg, solver):
         kwargs["num_epoch"] = min(step, cfg.train.num_epoch - i)
         solver.model.split = "train"
         solver.train(**kwargs)
-        solver.save("model_epoch_%d.pth" % solver.epoch)
+        # it takes too much disk space
+        # solver.save("model_epoch_%d.pth" % solver.epoch)
         if "test_batch_size" in cfg:
             solver.batch_size = cfg.test_batch_size
         solver.model.split = "valid"
@@ -118,8 +120,18 @@ def train_and_validate(cfg, solver):
                     score.append(v)
         score = sum(score) / len(score)
         if score > best_score:
+            # print("Update best epoch.")
+            if best_epoch > -1:
+                # remove old best epoch model parameters before saving new parameters
+                to_remove_path = os.path.expanduser("model_epoch_%d.pth" % best_epoch)
+                # print('removing old parameters at %s' % to_remove_path)
+                os.remove(to_remove_path)
+
             best_score = score
             best_epoch = solver.epoch
+
+            # only save epoch model parameters when it is another best epoch
+            solver.save("model_epoch_%d.pth" % solver.epoch)
 
     solver.load("model_epoch_%d.pth" % best_epoch)
     return solver, best_epoch
